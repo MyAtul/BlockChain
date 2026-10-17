@@ -1,0 +1,49 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_34-050292f251a53e6e6b48f7a7daa99e6ae55afb0b",
+  "solcVersion": "0.8.34",
+  "solcLongVersion": "0.8.34+commit.80d5c536",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.20.0"
+  },
+  "userSourceNameMap": {
+    "contracts/SupplyChain.sol": "project/contracts/SupplyChain.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "osaka",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/SupplyChain.sol": {
+        "content": "\r\n // SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.28;\r\n\r\ncontract SupplyChain {\r\n    address public immutable admin;\r\n    uint256 private nextProductId = 1;\r\n\r\n    struct Participant {\r\n        string name;\r\n        string role;\r\n        bool registered;\r\n    }\r\n\r\n    struct Product {\r\n        uint256 id;\r\n        string name;\r\n        string description;\r\n        string origin;\r\n        address currentOwner;\r\n        string status;\r\n        bool exists;\r\n    }\r\n\r\n    struct History {\r\n        address updatedBy;\r\n        string location;\r\n        string status;\r\n        string notes;\r\n        uint256 timestamp;\r\n    }\r\n\r\n    mapping(address => Participant) public participants;\r\n    mapping(uint256 => Product) private products;\r\n    mapping(uint256 => History[]) private productHistory;\r\n\r\n    event ParticipantRegistered(\r\n        address indexed account,\r\n        string name,\r\n        string role\r\n    );\r\n\r\n    event ProductRegistered(\r\n        uint256 indexed productId,\r\n        string name,\r\n        address indexed owner\r\n    );\r\n\r\n    event ProductUpdated(\r\n        uint256 indexed productId,\r\n        string location,\r\n        string status,\r\n        address indexed updatedBy\r\n    );\r\n\r\n    event OwnershipTransferred(\r\n        uint256 indexed productId,\r\n        address indexed previousOwner,\r\n        address indexed newOwner\r\n    );\r\n\r\n    modifier onlyAdmin() {\r\n        require(msg.sender == admin, \"Only admin can perform this action\");\r\n        _;\r\n    }\r\n\r\n    modifier onlyParticipant() {\r\n        require(\r\n            participants[msg.sender].registered,\r\n            \"Not a registered participant\"\r\n        );\r\n        _;\r\n    }\r\n\r\n    modifier productExists(uint256 productId) {\r\n        require(products[productId].exists, \"Product does not exist\");\r\n        _;\r\n    }\r\n\r\n    constructor() {\r\n        admin = msg.sender;\r\n    }\r\n\r\n    function registerParticipant(\r\n        address account,\r\n        string calldata name,\r\n        string calldata role\r\n    ) external onlyAdmin {\r\n        require(account != address(0), \"Invalid participant address\");\r\n        require(bytes(name).length > 0, \"Name is required\");\r\n        require(bytes(role).length > 0, \"Role is required\");\r\n        require(\r\n            !participants[account].registered,\r\n            \"Participant already registered\"\r\n        );\r\n\r\n        participants[account] = Participant({\r\n            name: name,\r\n            role: role,\r\n            registered: true\r\n        });\r\n\r\n        emit ParticipantRegistered(account, name, role);\r\n    }\r\n\r\n    function registerProduct(\r\n        string calldata name,\r\n        string calldata description,\r\n        string calldata origin\r\n    ) external onlyParticipant returns (uint256) {\r\n        require(bytes(name).length > 0, \"Product name is required\");\r\n        require(bytes(origin).length > 0, \"Origin is required\");\r\n\r\n        uint256 productId = nextProductId++;\r\n\r\n        products[productId] = Product({\r\n            id: productId,\r\n            name: name,\r\n            description: description,\r\n            origin: origin,\r\n            currentOwner: msg.sender,\r\n            status: \"Registered\",\r\n            exists: true\r\n        });\r\n\r\n        productHistory[productId].push(\r\n            History({\r\n                updatedBy: msg.sender,\r\n                location: origin,\r\n                status: \"Registered\",\r\n                notes: \"Product created\",\r\n                timestamp: block.timestamp\r\n            })\r\n        );\r\n\r\n        emit ProductRegistered(productId, name, msg.sender);\r\n\r\n        return productId;\r\n    }\r\n\r\n    function updateProduct(\r\n        uint256 productId,\r\n        string calldata location,\r\n        string calldata status,\r\n        string calldata notes\r\n    ) external onlyParticipant productExists(productId) {\r\n        Product storage product = products[productId];\r\n\r\n        require(\r\n            product.currentOwner == msg.sender,\r\n            \"Only current owner can update product\"\r\n        );\r\n        require(bytes(location).length > 0, \"Location is required\");\r\n        require(bytes(status).length > 0, \"Status is required\");\r\n\r\n        product.status = status;\r\n\r\n        productHistory[productId].push(\r\n            History({\r\n                updatedBy: msg.sender,\r\n                location: location,\r\n                status: status,\r\n                notes: notes,\r\n                timestamp: block.timestamp\r\n            })\r\n        );\r\n\r\n        emit ProductUpdated(productId, location, status, msg.sender);\r\n    }\r\n\r\n    function transferProduct(\r\n        uint256 productId,\r\n        address newOwner,\r\n        string calldata location,\r\n        string calldata notes\r\n    ) external onlyParticipant productExists(productId) {\r\n        Product storage product = products[productId];\r\n\r\n        require(\r\n            product.currentOwner == msg.sender,\r\n            \"Only current owner can transfer product\"\r\n        );\r\n        require(newOwner != address(0), \"Invalid recipient address\");\r\n        require(newOwner != msg.sender, \"Cannot transfer to yourself\");\r\n        require(\r\n            participants[newOwner].registered,\r\n            \"Recipient is not registered\"\r\n        );\r\n        require(bytes(location).length > 0, \"Location is required\");\r\n\r\n        address previousOwner = product.currentOwner;\r\n        product.currentOwner = newOwner;\r\n        product.status = \"Transferred\";\r\n\r\n        productHistory[productId].push(\r\n            History({\r\n                updatedBy: msg.sender,\r\n                location: location,\r\n                status: \"Transferred\",\r\n                notes: notes,\r\n                timestamp: block.timestamp\r\n            })\r\n        );\r\n\r\n        emit OwnershipTransferred(productId, previousOwner, newOwner);\r\n    }\r\n\r\n    function getProduct(\r\n        uint256 productId\r\n    ) external view productExists(productId) returns (\r\n        uint256 id,\r\n        string memory name,\r\n        string memory description,\r\n        string memory origin,\r\n        address currentOwner,\r\n        string memory status\r\n    ) {\r\n        Product storage product = products[productId];\r\n\r\n        return (\r\n            product.id,\r\n            product.name,\r\n            product.description,\r\n            product.origin,\r\n            product.currentOwner,\r\n            product.status\r\n        );\r\n    }\r\n\r\n    function getHistory(\r\n        uint256 productId\r\n    ) external view productExists(productId) returns (\r\n        History[] memory\r\n    ) {\r\n        return productHistory[productId];\r\n    }\r\n\r\n    function getHistoryCount(\r\n        uint256 productId\r\n    ) external view productExists(productId) returns (uint256) {\r\n        return productHistory[productId].length;\r\n    }\r\n}\r\n"
+      }
+    }
+  }
+}
